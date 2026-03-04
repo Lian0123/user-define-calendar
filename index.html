@@ -26,6 +26,10 @@ const locales = {
     sunset: '日落',
     monthSettings: '每月天數設定（可為每月自訂）',
     holidays: '節日 / 特殊事件（每年）',
+    weekSettings: '週期設定',
+    weekDays: '每週天數',
+    weekStart: '年首為星期',
+    dayNames: '星期名稱',
     add: '加入',
     generate: '產生年曆預覽',
     exportJSON: '匯出 JSON',
@@ -35,6 +39,9 @@ const locales = {
     lang: '語言',
     example: '範例：第一個月前 3 天',
     remove: '移除',
+    darkMode: '暗色模式',
+    lightMode: '淺色模式',
+    github: 'GitHub'
   },
   en: {
     title: 'Custom Calendar System',
@@ -46,6 +53,10 @@ const locales = {
     sunset: 'Sunset',
     monthSettings: 'Days per Month (customizable)',
     holidays: 'Holidays / Events (yearly)',
+    weekSettings: 'Week Settings',
+    weekDays: 'Days per Week',
+    weekStart: 'First Weekday of Year',
+    dayNames: 'Day Names',
     add: 'Add',
     generate: 'Generate Preview',
     exportJSON: 'Export JSON',
@@ -55,6 +66,36 @@ const locales = {
     lang: 'Language',
     example: 'Sample: first 3 days of month 1',
     remove: 'Remove',
+    darkMode: 'Dark Mode',
+    lightMode: 'Light Mode',
+    github: 'GitHub'
+  },
+  ja: {
+    title: 'カスタムカレンダーシステム',
+    year: '年',
+    monthsCount: '1年の月数',
+    hoursPerDay: '1日の時間数',
+    minutesPerHour: '1時間の分数',
+    sunrise: '日の出',
+    sunset: '日の入り',
+    monthSettings: '月ごとの日数設定（カスタム可能）',
+    holidays: '祝日／イベント（毎年）',
+    weekSettings: '週の設定',
+    weekDays: '週の日数',
+    weekStart: '年の初めの曜日',
+    dayNames: '曜日名',
+    add: '追加',
+    generate: 'プレビューを生成',
+    exportJSON: 'JSONをエクスポート',
+    exportJS: 'JSをエクスポート',
+    preview: 'プレビュー',
+    prefix: '年の接頭辞',
+    lang: '言語',
+    example: '例: 1か月目の最初の3日',
+    remove: '削除',
+    darkMode: 'ダークモード',
+    lightMode: 'ライトモード',
+    github: 'GitHub'
   }
 };
 
@@ -75,8 +116,9 @@ function download(filename, content, type) {
 }
 
 function buildCalendar(state) {
-  const { year, monthsCount, daysPerMonth, hoursPerDay, minutesPerHour, sunrise, sunset, holidays } = state;
+  const { year, monthsCount, daysPerMonth, hoursPerDay, minutesPerHour, sunrise, sunset, holidays, weekDaysCount, weekStartIndex, weekDayNames } = state;
   const months = [];
+  let weekdayCounter = weekStartIndex || 0; // index into weekDaysCount
   for (let m = 0; m < monthsCount; m++) {
     const dim = daysPerMonth[m] || daysPerMonth[0] || 30;
     const days = [];
@@ -85,12 +127,28 @@ function buildCalendar(state) {
       for (let h = 0; h < hoursPerDay; h++) {
         hours.push({ hour: h });
       }
-      days.push({ day: d, hoursCount: hoursPerDay, minutesPerHour, sunrise, sunset, events: [] });
+      const widx = weekdayCounter % weekDaysCount;
+      days.push({
+        day: d,
+        weekday: widx,
+        weekdayName: (weekDayNames && weekDayNames[widx]) || null,
+        hoursCount: hoursPerDay,
+        minutesPerHour,
+        sunrise,
+        sunset,
+        events: []
+      });
+      weekdayCounter++;
     }
     months.push({ monthIndex: m + 1, days });
   }
   const holidayList = (holidays || []).map(h => ({ ...h }));
-  return { year, months, holidays: holidayList, meta: { minutesPerHour, hoursPerDay } };
+  return {
+    year,
+    months,
+    holidays: holidayList,
+    meta: { minutesPerHour, hoursPerDay, weekDaysCount, weekStartIndex, weekDayNames }
+  };
 }
 
 function sanitizeForFilename(s) {
@@ -100,6 +158,7 @@ function sanitizeForFilename(s) {
 function App() {
   const [lang, setLang] = useState('zh-TW');
   const [yearPrefix, setYearPrefix] = useState('');
+  const [darkMode, setDarkMode] = useState(false);
   const [year, setYear] = useState(new Date().getFullYear());
   const [monthsCount, setMonthsCount] = useState(12);
   const [daysPerMonth, setDaysPerMonth] = useState(Array(12).fill(30));
@@ -109,7 +168,18 @@ function App() {
   const [sunset, setSunset] = useState('18:00');
   const [holidays, setHolidays] = useState([]);
   const [newHoliday, setNewHoliday] = useState({ month:1, day:1, name: '' });
+  const [weekDaysCount, setWeekDaysCount] = useState(7);
+  const [weekStartIndex, setWeekStartIndex] = useState(0);
+  const [weekDayNames, setWeekDayNames] = useState(() => {
+    // default names based on initial lang
+    return lang === 'zh-TW' ? ['日','一','二','三','四','五','六'] : ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  });
   const [calendar, setCalendar] = useState(null);
+
+  // apply dark mode class to body
+  useEffect(() => {
+    document.body.classList.toggle('dark', darkMode);
+  }, [darkMode]);
 
   useEffect(() => {
     setDaysPerMonth(prev => {
@@ -118,6 +188,33 @@ function App() {
       return next;
     });
   }, [monthsCount]);
+
+  useEffect(() => {
+    // adjust weekDayNames array length when weekDaysCount changes
+    setWeekDayNames(prev => {
+      const def = lang === 'zh-TW' ? ['日','一','二','三','四','五','六'] : ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      let next = prev.slice(0, weekDaysCount);
+      while (next.length < weekDaysCount) {
+        const idx = next.length;
+        next.push(def[idx] || `Day ${idx+1}`);
+      }
+      return next;
+    });
+    if (weekStartIndex >= weekDaysCount) {
+      setWeekStartIndex(0);
+    }
+  }, [weekDaysCount]);
+
+  useEffect(() => {
+    // when changing language, update default day names if user hasn't customized
+    setWeekDayNames(prev => {
+      const oldDef = lang === 'zh-TW' ? ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] : ['日','一','二','三','四','五','六'];
+      const newDef = lang === 'zh-TW' ? ['日','一','二','三','四','五','六'] : ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      const unchanged = prev.length === oldDef.length && prev.every((v,i)=>v===oldDef[i]);
+      if (unchanged) return newDef.slice(0, weekDaysCount);
+      return prev;
+    });
+  }, [lang, weekDaysCount]);
 
   function updateDayCount(idx, value) {
     setDaysPerMonth(d => {
@@ -138,7 +235,7 @@ function App() {
   }
 
   function generate() {
-    const state = { year, monthsCount, daysPerMonth, hoursPerDay, minutesPerHour, sunrise, sunset, holidays };
+    const state = { year, monthsCount, daysPerMonth, hoursPerDay, minutesPerHour, sunrise, sunset, holidays, weekDaysCount, weekStartIndex, weekDayNames };
     const cal = buildCalendar(state);
     for (const h of holidays) {
       const mIdx = h.month - 1;
@@ -173,8 +270,10 @@ function App() {
     <div className="container">
       <header className="top">
         <h1>{L('title')}</h1>
-        <div className="lang-row">
-          <label>{L('lang')}: <select value={lang} onChange={e=>setLang(e.target.value)}><option value="zh-TW">中文(繁)</option><option value="en">English</option></select></label>
+        <div className="header-controls">
+          <label>{L('lang')}: <select value={lang} onChange={e=>setLang(e.target.value)}><option value="zh-TW">中文(繁)</option><option value="en">English</option><option value="ja">日本語</option></select></label>
+          <button className="github-button" onClick={()=>window.open('https://github.com/Lian0123/user-define-calendar','_blank')}>{L('github')}</button>
+          <button className="theme-toggle" onClick={()=>setDarkMode(d=>!d)}>{darkMode?L('lightMode'):L('darkMode')}</button>
         </div>
       </header>
 
@@ -187,6 +286,29 @@ function App() {
         <label>{L('sunrise')}: <input type="time" value={sunrise} onChange={e=>setSunrise(e.target.value)} /></label>
         <label>{L('sunset')}: <input type="time" value={sunset} onChange={e=>setSunset(e.target.value)} /></label>
       </div>
+      
+      <section className="week-settings">
+        <h3>{L('weekSettings')}</h3>
+        <div className="week-controls">
+          <label>{L('weekDays')}: <input type="number" value={weekDaysCount} min={1} onChange={e=>setWeekDaysCount(Math.max(1, Number(e.target.value)||1))} /></label>
+          <label>{L('weekStart')}: 
+            <select value={weekStartIndex} onChange={e=>setWeekStartIndex(Number(e.target.value))}>
+              {weekDayNames.map((n,i)=><option key={i} value={i}>{n || i}</option>)}
+            </select>
+          </label>
+        </div>
+        <div className="day-names">
+          <label>{L('dayNames')}:</label>
+          <div className="day-names-inputs">
+            {weekDayNames.map((name,i)=>(
+              <input key={i} value={name} onChange={e=>{
+                const v=e.target.value;
+                setWeekDayNames(w=>{const c=[...w];c[i]=v;return c;});
+              }} placeholder={`#${i+1}`} />
+            ))}
+          </div>
+        </div>
+      </section>
 
       <section className="month-settings">
         <h3>{L('monthSettings')}</h3>
@@ -229,6 +351,8 @@ function App() {
           <div>
             <div>{L('year')}: {yearPrefix ? yearPrefix + ' ' : ''}{calendar.year}</div>
             <div>月份數: {calendar.months.length}</div>
+            <div>週天: {calendar.meta.weekDaysCount}</div>
+            <div>星期名稱: {calendar.meta.weekDayNames.join(', ')}</div>
             <div>{L('example')}</div>
             <pre>{JSON.stringify(calendar.months[0].days.slice(0,3), null, 2)}</pre>
           </div>
