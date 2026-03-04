@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>WebMCP 測試 — user-define-calendar</title>
+  <style>
+    body{font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial; padding:20px}
+    button{padding:8px 12px;border-radius:6px;background:#2563eb;color:#fff;border:none}
+    pre{background:#f6f8fb;padding:12px;border-radius:6px;white-space:pre-wrap}
+    iframe{width:0;height:0;border:0;position:fixed;left:-9999px}
+  </style>
+</head>
+<body>
+  <h2>WebMCP 呼叫測試</h2>
+  <p>此頁會在隱藏的 iframe 中載入應用程式（index.html），然後依序呼叫幾個已註冊的工具，並將結果顯示在下面。</p>
+  <p>
+    <button id="start">開始測試</button>
+    <a href="index.html" target="_blank" style="margin-left:12px">直接開啟應用程式</a>
+  </p>
+  <pre id="out">尚未執行測試。
+  </pre>
+
+  <iframe id="appFrame" src="index.html" title="app" ></iframe>
+
+  <script>
+    const out = document.getElementById('out')
+    const frame = document.getElementById('appFrame')
+    const startBtn = document.getElementById('start')
+
+    function log(...args){
+      out.textContent += '\n' + args.map(a=>{
+        try{ return typeof a === 'object' ? JSON.stringify(a) : String(a)
+        }catch(e){ return String(a) }
+      }).join(' ')
+    }
+
+    async function waitForMC(win, timeout = 8000){
+      const start = Date.now()
+      while(Date.now() - start < timeout){
+        if(win && win.navigator && win.navigator.modelContext) return win.navigator.modelContext
+        await new Promise(r=>setTimeout(r,200))
+      }
+      return null
+    }
+
+    async function runTests(){
+      out.textContent = '載入 iframe，等待 modelContext...'
+      const mc = await waitForMC(frame.contentWindow)
+      if(!mc){
+        log('找不到 navigator.modelContext，請確認 index.html 已載入且同源 (使用 HTTP 伺服器)。')
+        return
+      }
+      log('找到 modelContext，開始呼叫工具測試。')
+
+      const tests = [
+        { name:'generateCalendar', args:{year:2026, monthsCount:3} },
+        { name:'addHoliday', args:{holiday:{title:'測試假日', date:'2026-03-05'}} },
+        { name:'setYearPrefix', args:{prefix:'令和'} },
+        { name:'exportCalendar', args:{format:'json'} }
+      ]
+
+      for(const t of tests){
+        try{
+          log('呼叫：', t.name, '參數：', t.args)
+          const res = await mc.executeTool(t.name, t.args)
+          log('回應：', res)
+        }catch(err){
+          log('錯誤：', t.name, err && err.message ? err.message : err)
+        }
+      }
+
+      log('\n測試完成。請檢查主應用程式 UI 是否反映變更（例如假日是否已新增，年號前綴是否變更）。')
+    }
+
+    startBtn.addEventListener('click', ()=>{
+      out.textContent = '啟動測試中...'
+      runTests()
+    })
+  </script>
+</body>
+</html>

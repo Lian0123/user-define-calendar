@@ -12,6 +12,29 @@
    按鈕樣式已完全統一，採用圓角、高對比、動態陰影，風格現代且一致。
 4. 節日 / 特殊事件的管理已改為模態框介面，使用者可在彈出視窗輸入詳細資訊，並在列表中快速編輯或刪除，提高可用性。
 5. **WebMCP 支援進階**：表單已使用 `toolname`、`toolparamdescription` 等屬性，並在 `navigator.modelContext` 上提供 `registerTool`/`unregisterTool`/`executeTool` API。操作按鈕（例如產生年曆或匯出資料）亦包裝成 WebMCP 工具，名稱為 `generateCalendar` 與 `exportCalendar`。此外，還有 `addHoliday`、`editHoliday`、`removeHoliday`、`setYearPrefix` 以及 `setWeekDayName` 等工具，能管理節日、設定前綴與編輯文字。
+
+### WebMCP 工具清單
+| 工具名稱 | 描述 | 輸入範例 | 輸出 |
+|---|---|---|---|
+| generateCalendar | 生成年曆資料 | `{year:2026, monthsCount:12}` | 日曆物件 JSON |
+| exportCalendar | 匯出檔案 | `{format:'json'}` or `{format:'js'}` | 訊息文字 |
+| addHoliday | 新增節日 | `{month:1,day:1,name:'元旦'}` | 訊息 |
+| editHoliday | 編輯節日 | `{index:0,month:1,day:2,name:'初二'}` | 訊息 |
+| removeHoliday | 刪除節日 | `{index:0}` | 訊息 |
+| setYearPrefix | 設定年份前綴 | `{prefix:'令和'}` | 訊息 |
+| setWeekDayName | 設定星期名稱 | `{index:0,name:'Sun'}` | 訊息 |
+
+### 如何呼叫
+```js
+const mc = window.navigator.modelContext;
+if(mc){
+  mc.executeTool('generateCalendar',{year:2026,monthsCount:12})
+    .then(result=>console.log(result))
+    .catch(console.error);
+}
+```
+
+工具可在任何支援 modelContext 的 agent 環境下呼叫，並依上述輸入/輸出規格傳遞資料。
    範例工具 `generateCalendar` 可註冊至 modelContext，讓 agent 直接呼叫生成年曆資料。
    同時監聽 `toolvalidate` / `toolsubmit` 等事件以進行驗證和提交，模仿 React-flightsearch 演示。
 6. **SEO優化**：頁面使用語義化 HTML（header/main/section/footer）、meta description/keywords、Open Graph 標籤，並採用 defer 加載與 CDN 以縮短載入時間，有助搜尋引擎排名。
