@@ -12,12 +12,54 @@
   <body>
     <div id="root"></div>
     <script type="text/babel">
-// inlined src/app.js to allow opening via file://
+// inlined app with i18n and year-prefix support (works with file://)
 const { useState, useEffect } = React;
 
-function timeToStr(t) {
-  if (!t) return "";
-  return t;
+const locales = {
+  'zh-TW': {
+    title: '自定義年曆系統',
+    year: '年份',
+    monthsCount: '每年月份數',
+    hoursPerDay: '每天小時數',
+    minutesPerHour: '每小時分鐘數',
+    sunrise: '日出',
+    sunset: '日落',
+    monthSettings: '每月天數設定（可為每月自訂）',
+    holidays: '節日 / 特殊事件（每年）',
+    add: '加入',
+    generate: '產生年曆預覽',
+    exportJSON: '匯出 JSON',
+    exportJS: '匯出 JS',
+    preview: '預覽',
+    prefix: '年份前綴',
+    lang: '語言',
+    example: '範例：第一個月前 3 天',
+    remove: '移除',
+  },
+  en: {
+    title: 'Custom Calendar System',
+    year: 'Year',
+    monthsCount: 'Months per Year',
+    hoursPerDay: 'Hours per Day',
+    minutesPerHour: 'Minutes per Hour',
+    sunrise: 'Sunrise',
+    sunset: 'Sunset',
+    monthSettings: 'Days per Month (customizable)',
+    holidays: 'Holidays / Events (yearly)',
+    add: 'Add',
+    generate: 'Generate Preview',
+    exportJSON: 'Export JSON',
+    exportJS: 'Export JS',
+    preview: 'Preview',
+    prefix: 'Year Prefix',
+    lang: 'Language',
+    example: 'Sample: first 3 days of month 1',
+    remove: 'Remove',
+  }
+};
+
+function t(strings, lang, key) {
+  return (locales[lang] && locales[lang][key]) || key;
 }
 
 function download(filename, content, type) {
@@ -41,21 +83,23 @@ function buildCalendar(state) {
     for (let d = 1; d <= dim; d++) {
       const hours = [];
       for (let h = 0; h < hoursPerDay; h++) {
-        for (let mm = 0; mm < minutesPerHour; mm++) {
-          // we don't need to store every minute entry; store hour-level with minutesPerHour
-        }
         hours.push({ hour: h });
       }
       days.push({ day: d, hoursCount: hoursPerDay, minutesPerHour, sunrise, sunset, events: [] });
     }
     months.push({ monthIndex: m + 1, days });
   }
-  // attach holidays
   const holidayList = (holidays || []).map(h => ({ ...h }));
   return { year, months, holidays: holidayList, meta: { minutesPerHour, hoursPerDay } };
 }
 
+function sanitizeForFilename(s) {
+  return (s || '').toString().trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-]/g, '');
+}
+
 function App() {
+  const [lang, setLang] = useState('zh-TW');
+  const [yearPrefix, setYearPrefix] = useState('');
   const [year, setYear] = useState(new Date().getFullYear());
   const [monthsCount, setMonthsCount] = useState(12);
   const [daysPerMonth, setDaysPerMonth] = useState(Array(12).fill(30));
@@ -68,7 +112,6 @@ function App() {
   const [calendar, setCalendar] = useState(null);
 
   useEffect(() => {
-    // keep daysPerMonth length in sync
     setDaysPerMonth(prev => {
       const next = prev.slice(0, monthsCount);
       while (next.length < monthsCount) next.push(prev[0] || 30);
@@ -97,7 +140,6 @@ function App() {
   function generate() {
     const state = { year, monthsCount, daysPerMonth, hoursPerDay, minutesPerHour, sunrise, sunset, holidays };
     const cal = buildCalendar(state);
-    // attach holiday events into corresponding date slots
     for (const h of holidays) {
       const mIdx = h.month - 1;
       if (cal.months[mIdx]) {
@@ -111,30 +153,43 @@ function App() {
   function exportJSON() {
     if (!calendar) generate();
     const data = calendar || buildCalendar({ year, monthsCount, daysPerMonth, hoursPerDay, minutesPerHour, sunrise, sunset, holidays });
-    download(`${year}-calendar.json`, JSON.stringify(data, null, 2), 'application/json');
+    const prefixForFile = sanitizeForFilename(yearPrefix);
+    const filename = `${prefixForFile ? prefixForFile + '_' : ''}${year}-calendar.json`;
+    download(filename, JSON.stringify(data, null, 2), 'application/json');
   }
 
   function exportJS() {
     if (!calendar) generate();
     const data = calendar || buildCalendar({ year, monthsCount, daysPerMonth, hoursPerDay, minutesPerHour, sunrise, sunset, holidays });
-    const js = `// Auto-generated calendar for ${year}\nconst calendarData = ${JSON.stringify(data, null, 2)};\nexport default calendarData;\n`;
-    download(`${year}-calendar.js`, js, 'text/javascript');
+    const prefixForFile = sanitizeForFilename(yearPrefix);
+    const filename = `${prefixForFile ? prefixForFile + '_' : ''}${year}-calendar.js`;
+    const js = `// Auto-generated calendar for ${yearPrefix ? yearPrefix + ' ' : ''}${year}\nconst calendarData = ${JSON.stringify(data, null, 2)};\nexport default calendarData;\n`;
+    download(filename, js, 'text/javascript');
   }
+
+  const L = (k) => (locales[lang] && locales[lang][k]) || k;
 
   return (
     <div className="container">
-      <h1>自定義年曆系統</h1>
+      <header className="top">
+        <h1>{L('title')}</h1>
+        <div className="lang-row">
+          <label>{L('lang')}: <select value={lang} onChange={e=>setLang(e.target.value)}><option value="zh-TW">中文(繁)</option><option value="en">English</option></select></label>
+        </div>
+      </header>
+
       <div className="controls">
-        <label>年份: <input type="number" value={year} onChange={e=>setYear(Number(e.target.value))} /></label>
-        <label>每年月份數: <input type="number" value={monthsCount} min={1} onChange={e=>setMonthsCount(Math.max(1, Number(e.target.value)||1))} /></label>
-        <label>每天小時數: <input type="number" value={hoursPerDay} min={1} onChange={e=>setHoursPerDay(Math.max(1, Number(e.target.value)||1))} /></label>
-        <label>每小時分鐘數: <input type="number" value={minutesPerHour} min={1} onChange={e=>setMinutesPerHour(Math.max(1, Number(e.target.value)||1))} /></label>
-        <label>日出: <input type="time" value={sunrise} onChange={e=>setSunrise(e.target.value)} /></label>
-        <label>日落: <input type="time" value={sunset} onChange={e=>setSunset(e.target.value)} /></label>
+        <label>{L('prefix')}<input placeholder={L('prefix')} value={yearPrefix} onChange={e=>setYearPrefix(e.target.value)} /></label>
+        <label>{L('year')}: <input type="number" value={year} onChange={e=>setYear(Number(e.target.value))} /></label>
+        <label>{L('monthsCount')}: <input type="number" value={monthsCount} min={1} onChange={e=>setMonthsCount(Math.max(1, Number(e.target.value)||1))} /></label>
+        <label>{L('hoursPerDay')}: <input type="number" value={hoursPerDay} min={1} onChange={e=>setHoursPerDay(Math.max(1, Number(e.target.value)||1))} /></label>
+        <label>{L('minutesPerHour')}: <input type="number" value={minutesPerHour} min={1} onChange={e=>setMinutesPerHour(Math.max(1, Number(e.target.value)||1))} /></label>
+        <label>{L('sunrise')}: <input type="time" value={sunrise} onChange={e=>setSunrise(e.target.value)} /></label>
+        <label>{L('sunset')}: <input type="time" value={sunset} onChange={e=>setSunset(e.target.value)} /></label>
       </div>
 
-      <div className="month-settings">
-        <h3>每月天數設定（可為每月自訂）</h3>
+      <section className="month-settings">
+        <h3>{L('monthSettings')}</h3>
         <div className="months-grid">
           {Array.from({length: monthsCount}).map((_, i) => (
             <div key={i} className="month-item">
@@ -143,42 +198,42 @@ function App() {
             </div>
           ))}
         </div>
-      </div>
+      </section>
 
-      <div className="holidays">
-        <h3>節日 / 特殊事件（每年）</h3>
+      <section className="holidays">
+        <h3>{L('holidays')}</h3>
         <div className="add-holiday">
           <select value={newHoliday.month} onChange={e=>setNewHoliday(n=>({...n, month: e.target.value}))}>
             {Array.from({length: monthsCount}).map((_,i)=> <option key={i} value={i+1}>月 {i+1}</option>)}
           </select>
           <input type="number" min={1} value={newHoliday.day} onChange={e=>setNewHoliday(n=>({...n, day: e.target.value}))} />
           <input placeholder="名稱" value={newHoliday.name} onChange={e=>setNewHoliday(n=>({...n, name: e.target.value}))} />
-          <button onClick={addHoliday}>加入</button>
+          <button onClick={addHoliday}>{L('add')}</button>
         </div>
         <ul>
           {holidays.map((h, i) => (
-            <li key={i}>{h.name} — 月{h.month}日{h.day} <button onClick={()=>removeHoliday(i)}>移除</button></li>
+            <li key={i}>{h.name} — 月{h.month}日{h.day} <button onClick={()=>removeHoliday(i)}>{L('remove')}</button></li>
           ))}
         </ul>
-      </div>
+      </section>
 
       <div className="actions">
-        <button onClick={generate}>產生年曆預覽</button>
-        <button onClick={exportJSON}>匯出 JSON</button>
-        <button onClick={exportJS}>匯出 JS</button>
+        <button onClick={generate}>{L('generate')}</button>
+        <button onClick={exportJSON}>{L('exportJSON')}</button>
+        <button onClick={exportJS}>{L('exportJS')}</button>
       </div>
 
-      <div className="preview">
-        <h3>預覽</h3>
+      <section className="preview">
+        <h3>{L('preview')}</h3>
         {calendar ? (
           <div>
-            <div>年份: {calendar.year}</div>
+            <div>{L('year')}: {yearPrefix ? yearPrefix + ' ' : ''}{calendar.year}</div>
             <div>月份數: {calendar.months.length}</div>
-            <div>範例：第一個月前 3 天</div>
+            <div>{L('example')}</div>
             <pre>{JSON.stringify(calendar.months[0].days.slice(0,3), null, 2)}</pre>
           </div>
         ) : (<div>尚未產生年曆</div>)}
-      </div>
+      </section>
     </div>
   );
 }
