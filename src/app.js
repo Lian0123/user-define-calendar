@@ -1,0 +1,171 @@
+const { useState, useEffect } = React;
+
+function timeToStr(t) {
+  if (!t) return "";
+  return t;
+}
+
+function download(filename, content, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function buildCalendar(state) {
+  const { year, monthsCount, daysPerMonth, hoursPerDay, minutesPerHour, sunrise, sunset, holidays } = state;
+  const months = [];
+  for (let m = 0; m < monthsCount; m++) {
+    const dim = daysPerMonth[m] || daysPerMonth[0] || 30;
+    const days = [];
+    for (let d = 1; d <= dim; d++) {
+      const hours = [];
+      for (let h = 0; h < hoursPerDay; h++) {
+        for (let mm = 0; mm < minutesPerHour; mm++) {
+          // we don't need to store every minute entry; store hour-level with minutesPerHour
+        }
+        hours.push({ hour: h });
+      }
+      days.push({ day: d, hoursCount: hoursPerDay, minutesPerHour, sunrise, sunset, events: [] });
+    }
+    months.push({ monthIndex: m + 1, days });
+  }
+  // attach holidays
+  const holidayList = (holidays || []).map(h => ({ ...h }));
+  return { year, months, holidays: holidayList, meta: { minutesPerHour, hoursPerDay } };
+}
+
+function App() {
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [monthsCount, setMonthsCount] = useState(12);
+  const [daysPerMonth, setDaysPerMonth] = useState(Array(12).fill(30));
+  const [hoursPerDay, setHoursPerDay] = useState(24);
+  const [minutesPerHour, setMinutesPerHour] = useState(60);
+  const [sunrise, setSunrise] = useState('06:00');
+  const [sunset, setSunset] = useState('18:00');
+  const [holidays, setHolidays] = useState([]);
+  const [newHoliday, setNewHoliday] = useState({ month:1, day:1, name: '' });
+  const [calendar, setCalendar] = useState(null);
+
+  useEffect(() => {
+    // keep daysPerMonth length in sync
+    setDaysPerMonth(prev => {
+      const next = prev.slice(0, monthsCount);
+      while (next.length < monthsCount) next.push(prev[0] || 30);
+      return next;
+    });
+  }, [monthsCount]);
+
+  function updateDayCount(idx, value) {
+    setDaysPerMonth(d => {
+      const copy = [...d];
+      copy[idx] = Math.max(1, parseInt(value) || 1);
+      return copy;
+    });
+  }
+
+  function addHoliday() {
+    if (!newHoliday.name) return;
+    setHolidays(h => [...h, { ...newHoliday, month: Number(newHoliday.month), day: Number(newHoliday.day) }]);
+    setNewHoliday({ month:1, day:1, name: '' });
+  }
+
+  function removeHoliday(i) {
+    setHolidays(h => h.filter((_, idx) => idx !== i));
+  }
+
+  function generate() {
+    const state = { year, monthsCount, daysPerMonth, hoursPerDay, minutesPerHour, sunrise, sunset, holidays };
+    const cal = buildCalendar(state);
+    // attach holiday events into corresponding date slots
+    for (const h of holidays) {
+      const mIdx = h.month - 1;
+      if (cal.months[mIdx]) {
+        const dayObj = cal.months[mIdx].days.find(dd => dd.day === Number(h.day));
+        if (dayObj) dayObj.events.push({ name: h.name, type: 'holiday' });
+      }
+    }
+    setCalendar(cal);
+  }
+
+  function exportJSON() {
+    if (!calendar) generate();
+    const data = calendar || buildCalendar({ year, monthsCount, daysPerMonth, hoursPerDay, minutesPerHour, sunrise, sunset, holidays });
+    download(`${year}-calendar.json`, JSON.stringify(data, null, 2), 'application/json');
+  }
+
+  function exportJS() {
+    if (!calendar) generate();
+    const data = calendar || buildCalendar({ year, monthsCount, daysPerMonth, hoursPerDay, minutesPerHour, sunrise, sunset, holidays });
+    const js = `// Auto-generated calendar for ${year}\nconst calendarData = ${JSON.stringify(data, null, 2)};\nexport default calendarData;\n`;
+    download(`${year}-calendar.js`, js, 'text/javascript');
+  }
+
+  return (
+    <div className="container">
+      <h1>自定義年曆系統</h1>
+      <div className="controls">
+        <label>年份: <input type="number" value={year} onChange={e=>setYear(Number(e.target.value))} /></label>
+        <label>每年月份數: <input type="number" value={monthsCount} min={1} onChange={e=>setMonthsCount(Math.max(1, Number(e.target.value)||1))} /></label>
+        <label>每天小時數: <input type="number" value={hoursPerDay} min={1} onChange={e=>setHoursPerDay(Math.max(1, Number(e.target.value)||1))} /></label>
+        <label>每小時分鐘數: <input type="number" value={minutesPerHour} min={1} onChange={e=>setMinutesPerHour(Math.max(1, Number(e.target.value)||1))} /></label>
+        <label>日出: <input type="time" value={sunrise} onChange={e=>setSunrise(e.target.value)} /></label>
+        <label>日落: <input type="time" value={sunset} onChange={e=>setSunset(e.target.value)} /></label>
+      </div>
+
+      <div className="month-settings">
+        <h3>每月天數設定（可為每月自訂）</h3>
+        <div className="months-grid">
+          {Array.from({length: monthsCount}).map((_, i) => (
+            <div key={i} className="month-item">
+              <div>月 {i+1}</div>
+              <input type="number" value={daysPerMonth[i]||30} min={1} onChange={e=>updateDayCount(i, e.target.value)} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="holidays">
+        <h3>節日 / 特殊事件（每年）</h3>
+        <div className="add-holiday">
+          <select value={newHoliday.month} onChange={e=>setNewHoliday(n=>({...n, month: e.target.value}))}>
+            {Array.from({length: monthsCount}).map((_,i)=> <option key={i} value={i+1}>月 {i+1}</option>)}
+          </select>
+          <input type="number" min={1} value={newHoliday.day} onChange={e=>setNewHoliday(n=>({...n, day: e.target.value}))} />
+          <input placeholder="名稱" value={newHoliday.name} onChange={e=>setNewHoliday(n=>({...n, name: e.target.value}))} />
+          <button onClick={addHoliday}>加入</button>
+        </div>
+        <ul>
+          {holidays.map((h, i) => (
+            <li key={i}>{h.name} — 月{h.month}日{h.day} <button onClick={()=>removeHoliday(i)}>移除</button></li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="actions">
+        <button onClick={generate}>產生年曆預覽</button>
+        <button onClick={exportJSON}>匯出 JSON</button>
+        <button onClick={exportJS}>匯出 JS</button>
+      </div>
+
+      <div className="preview">
+        <h3>預覽</h3>
+        {calendar ? (
+          <div>
+            <div>年份: {calendar.year}</div>
+            <div>月份數: {calendar.months.length}</div>
+            <div>範例：第一個月前 3 天</div>
+            <pre>{JSON.stringify(calendar.months[0].days.slice(0,3), null, 2)}</pre>
+          </div>
+        ) : (<div>尚未產生年曆</div>)}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);

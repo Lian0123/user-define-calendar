@@ -1,0 +1,16 @@
+:root{--bg:#f6f8fb;--card:#fff;--accent:#2b6cb0}
+body{font-family:Inter,system-ui,Arial;background:var(--bg);margin:0;padding:20px;color:#0b1220}
+.container{max-width:1000px;margin:0 auto;background:var(--card);padding:20px;border-radius:8px;box-shadow:0 6px 18px rgba(17,24,39,0.08)}
+.controls{display:flex;flex-wrap:wrap;gap:12px}
+.controls label{display:flex;flex-direction:column;font-size:14px}
+input[type=number], input[type=time], input[type=text], select{padding:6px 8px;border:1px solid #d1d5db;border-radius:6px}
+.month-settings{margin-top:14px}
+.months-grid{display:flex;flex-wrap:wrap;gap:8px}
+.month-item{background:#f3f4f6;padding:10px;border-radius:6px;width:80px;text-align:center}
+.holidays{margin-top:14px}
+.add-holiday{display:flex;gap:8px;align-items:center}
+.actions{margin-top:14px;display:flex;gap:8px}
+button{background:var(--accent);color:#fff;border:none;padding:8px 12px;border-radius:6px;cursor:pointer}
+button:hover{opacity:.95}
+.preview{margin-top:16px}
+pre{background:#0b1220;color:#fff;padding:10px;border-radius:6px;overflow:auto}
