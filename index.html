@@ -270,6 +270,47 @@ function generateCalendar(params) {
   // params may include same keys as state
   return buildCalendar(params);
 }
+
+function exportCalendar(params) {
+  // params.format 'json' or 'js'
+  if (params && params.format === 'json') {
+    exportJSON();
+    return 'JSON file created';
+  } else if (params && params.format === 'js') {
+    exportJS();
+    return 'JS file created';
+  }
+  return 'invalid format';
+}
+
+function setYearPrefixToolFunc(p) {
+  setYearPrefix(p.prefix || '');
+  return 'year prefix set';
+}
+const setYearPrefixTool = {
+  execute: setYearPrefixToolFunc,
+  name: 'setYearPrefix',
+  description: 'Set the year prefix text',
+  inputSchema: {type:'object',properties:{prefix:{type:'string'}},required:['prefix']},
+  outputSchema:{type:'string'}
+};
+
+function setWeekDayNameToolFunc(p) {
+  setWeekDayNames(old=>{
+    const arr=[...old];
+    if (p.index!=null && arr[p.index]!=null) arr[p.index]=p.name;
+    return arr;
+  });
+  return 'weekday name set';
+}
+const setWeekDayNameTool = {
+  execute: setWeekDayNameToolFunc,
+  name: 'setWeekDayName',
+  description: 'Set name of a specific weekday by index',
+  inputSchema:{type:'object',properties:{index:{type:'number'},name:{type:'string'}},required:['index','name']},
+  outputSchema:{type:'string'}
+};
+
 const generateCalendarTool = {
   execute: generateCalendar,
   name: 'generateCalendar',
@@ -295,17 +336,89 @@ const generateCalendarTool = {
   }
 };
 
+const exportCalendarTool = {
+  execute: exportCalendar,
+  name: 'exportCalendar',
+  description: 'Export calendar data (json or js file)',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      format: { type: 'string', enum: ['json','js'] }
+    },
+    required: ['format']
+  },
+  outputSchema: { type: 'string' }
+};
+
+// holiday management tools
+function addHolidayToolFunc(h) {
+  setHolidays(old => [...old, { month:Number(h.month), day:Number(h.day), name:h.name }]);
+  return 'holiday added';
+}
+const addHolidayTool = {
+  execute: addHolidayToolFunc,
+  name: 'addHoliday',
+  description: 'Add a holiday or event',
+  inputSchema:{type:'object',properties:{month:{type:'number'},day:{type:'number'},name:{type:'string'}},required:['month','day','name']},
+  outputSchema:{type:'string'}
+};
+
+function editHolidayToolFunc(h) {
+  setHolidays(old => {
+    const copy=[...old];
+    if (h.index!=null && copy[h.index]) {
+      copy[h.index]={month:Number(h.month),day:Number(h.day),name:h.name};
+    }
+    return copy;
+  });
+  return 'holiday edited';
+}
+const editHolidayTool = {
+  execute: editHolidayToolFunc,
+  name:'editHoliday',
+  description:'Edit existing holiday by index',
+  inputSchema:{type:'object',properties:{index:{type:'number'},month:{type:'number'},day:{type:'number'},name:{type:'string'}},required:['index','month','day','name']},
+  outputSchema:{type:'string'}
+};
+
+function removeHolidayToolFunc(h) {
+  setHolidays(old => old.filter((_,i)=>i!==h.index));
+  return 'holiday removed';
+}
+const removeHolidayTool = {
+  execute: removeHolidayToolFunc,
+  name:'removeHoliday',
+  description:'Remove holiday by index',
+  inputSchema:{type:'object',properties:{index:{type:'number'}},required:['index']},
+  outputSchema:{type:'string'}
+};
+
+// register new tools in registration
 function registerCalendarTools() {
   const mc = window.navigator.modelContext;
   if (mc) {
     mc.registerTool(generateCalendarTool);
+    mc.registerTool(exportCalendarTool);
+    mc.registerTool(addHolidayTool);
+    mc.registerTool(editHolidayTool);
+    mc.registerTool(removeHolidayTool);
+    mc.registerTool(setYearPrefixTool);
+    mc.registerTool(setWeekDayNameTool);
   }
 }
+
+// no-op duplicate removed
 
 function unregisterCalendarTools() {
   const mc = window.navigator.modelContext;
   if (mc) {
     mc.unregisterTool(generateCalendarTool.name);
+    mc.unregisterTool(exportCalendarTool.name);
+    mc.unregisterTool(addHolidayTool.name);
+    mc.unregisterTool(editHolidayTool.name);
+    mc.unregisterTool(removeHolidayTool.name);
+    mc.unregisterTool(setYearPrefixTool.name);
+    mc.unregisterTool(setWeekDayNameTool.name);
   }
 }
 
