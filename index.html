@@ -1,5 +1,36 @@
 <!doctype html>
 <html lang="zh-TW">
+<script>
+// polyfill minimal navigator.modelContext for WebMCP/demo compatibility
+if (!('modelContext' in navigator)) {
+  (function() {
+    const tools = {};
+    navigator.modelContext = {
+      addEventListener(type, cb) { window.addEventListener(type, cb); },
+      removeEventListener(type, cb) { window.removeEventListener(type, cb); },
+      dispatchEvent(evt) { return window.dispatchEvent(evt); },
+      request(detail) {
+        const ev = new CustomEvent('toolrequest', { detail });
+        window.dispatchEvent(ev);
+      },
+      registerTool(tool) {
+        tools[tool.name] = tool;
+        console.log('tool registered', tool.name);
+      },
+      unregisterTool(name) {
+        delete tools[name];
+        console.log('tool unregistered', name);
+      },
+      executeTool(name, input) {
+        if (tools[name] && typeof tools[name].execute === 'function') {
+          return tools[name].execute(input);
+        }
+        return Promise.reject(new Error('tool not found:' + name));
+      }
+    };
+  })();
+}
+</script>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -30,6 +61,54 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('service-worker.js').catch(console.error);
   });
 }
+// WebMCP event handling (based on react-flightsearch patterns)
+window.addEventListener('toolactivated', e => {
+  const form = document.getElementById('calendarForm');
+  if (form && e.detail && e.detail.toolname === 'configure_calendar') {
+    form.classList.add('tool-form-active');
+  }
+});
+window.addEventListener('toolvalidate', e => {
+  const errors = [];
+  const detail = e.detail || {};
+  if (detail.toolname === 'configure_calendar') {
+    const form = document.getElementById('calendarForm');
+    if (form) {
+      const inputs = form.querySelectorAll('input,select');
+      inputs.forEach(inp=>{
+        if (inp.hasAttribute('required') && !inp.value) {
+          errors.push({name: inp.name, message: inp.name + ' is required'});
+        }
+        const pattern = inp.getAttribute('pattern');
+        if (pattern && inp.value) {
+          const re = new RegExp(pattern);
+          if (!re.test(inp.value)) {
+            errors.push({name: inp.name, message: inp.name + ' format invalid'});
+          }
+        }
+      });
+    }
+  }
+  if (errors.length) {
+    e.detail.response = {errors};
+    const evt = new CustomEvent('toolverror', {detail: e.detail});
+    window.dispatchEvent(evt);
+  } else {
+    const evt = new CustomEvent('toolok', {detail: e.detail});
+    window.dispatchEvent(evt);
+  }
+});
+window.addEventListener('toolsubmit', e => {
+  const evt = new CustomEvent('toolresponse', {detail:{
+    toolname:e.detail.toolname,
+    result:'success'
+  }});
+  window.dispatchEvent(evt);
+});
+window.addEventListener('tooldone', e => {
+  const form = document.getElementById('calendarForm');
+  if (form) form.classList.remove('tool-form-active');
+});
     </script>
     <script type="text/babel">
 // inlined app with i18n and year-prefix support (works with file://)
@@ -184,6 +263,55 @@ function buildCalendar(state) {
     holidays: holidayList,
     meta: { minutesPerHour, hoursPerDay, weekDaysCount, weekStartIndex, weekDayNames }
   };
+}
+
+// WebMCP calendar tool definitions and registration
+function generateCalendar(params) {
+  // params may include same keys as state
+  return buildCalendar(params);
+}
+const generateCalendarTool = {
+  execute: generateCalendar,
+  name: 'generateCalendar',
+  description: 'Generate calendar data from parameters',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      year: { type: 'number' },
+      monthsCount: { type: 'number' },
+      daysPerMonth: { type: 'array', items:{type:'number'} },
+      hoursPerDay: { type:'number' },
+      minutesPerHour: { type:'number' },
+      sunrise: { type:'string' },
+      sunset: { type:'string' },
+      holidays: { type:'array', items:{type:'object'} },
+      weekDaysCount:{type:'number'},
+      weekStartIndex:{type:'number'},
+      weekDayNames:{type:'array',items:{type:'string'}}
+    }
+  },
+  outputSchema: {
+    type:'object'
+  }
+};
+
+function registerCalendarTools() {
+  const mc = window.navigator.modelContext;
+  if (mc) {
+    mc.registerTool(generateCalendarTool);
+  }
+}
+
+function unregisterCalendarTools() {
+  const mc = window.navigator.modelContext;
+  if (mc) {
+    mc.unregisterTool(generateCalendarTool.name);
+  }
+}
+
+// auto-register on load
+if (window.navigator.modelContext) {
+  registerCalendarTools();
 }
 
 function sanitizeForFilename(s) {

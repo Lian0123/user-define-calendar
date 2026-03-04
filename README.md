@@ -11,7 +11,10 @@
 3. 可切換暗色 / 淺色主題，暗色模式下所有文字會改為白色、面板皆變深且不再出現白色背景。
    按鈕樣式已完全統一，採用圓角、高對比、動態陰影，風格現代且一致。
 4. 節日 / 特殊事件的管理已改為模態框介面，使用者可在彈出視窗輸入詳細資訊，並在列表中快速編輯或刪除，提高可用性。
-5. **SEO優化**：頁面使用語義化 HTML（header/main/section/footer）、meta description/keywords、Open Graph 標籤，並採用 defer 加載與 CDN 以縮短載入時間，有助搜尋引擎排名。
+5. **WebMCP 支援進階**：表單已使用 `toolname`、`toolparamdescription` 等屬性，並在 `navigator.modelContext` 上提供 `registerTool`/`unregisterTool`/`executeTool` API。
+   範例工具 `generateCalendar` 可註冊至 modelContext，讓 agent 直接呼叫生成年曆資料。
+   同時監聽 `toolvalidate` / `toolsubmit` 等事件以進行驗證和提交，模仿 React-flightsearch 演示。
+6. **SEO優化**：頁面使用語義化 HTML（header/main/section/footer）、meta description/keywords、Open Graph 標籤，並採用 defer 加載與 CDN 以縮短載入時間，有助搜尋引擎排名。
 5. **PWA 支援**：內建 manifest.webmanifest 與 service-worker.js，可安裝至手機桌面並在 HTTP/HTTPS 環境下離線使用主要功能，透過快取 `icon.svg`, `icon-192.png`, `icon-512.png` 及其它資源提升速度。
 6. 標題列也包含前往 GitHub 專案的按鈕。
 3. **週期設定**：可自訂一週天數、年第一天的星期、並命名每個星期日。
